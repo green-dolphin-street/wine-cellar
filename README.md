@@ -17,10 +17,11 @@ This new, more realistic and rigorous digital twin is designed to investigate hi
 
 ## Features
 ### Procedural WINE Infrastructure Generator
+* **Safe Editor-Time Generation**: All procedural scripts use `[ExecuteInEditMode]` combined with an `isDirty` flag pattern. This provides instant, real-time updates in the editor as you change parameters, while avoiding common Unity errors.
 * **`ProceduralRoomGenerator.cs`**: Creates the main room structure (floor, walls, ceiling) based on `roomWidth`, `roomHeight`, and `roomDepth`.
 * **`ProceduralRackPlacer.cs`**: Automatically populates the room with a specified number of racks in a configurable "hot aisle / cold aisle" layout.
 * **`ProceduralLightPlacer.cs`**: Dynamically adds realtime Point Lights along the ceiling edges, leaving the central ceiling area open for other equipment (like IRS arrays).
-* **Safe Editor-Time Generation**: All procedural scripts use `[ExecuteInEditMode]` combined with an `isDirty` flag pattern. This provides instant, real-time updates in the editor as you change parameters, while avoiding common Unity errors.
+* **`ProceduralTransceiverPlacer.cs`**: Automatically places transceiver modules onto each rack.
 
 ## Getting Started & Scene Hierarchy
 
