@@ -41,9 +41,19 @@ public class ProceduralRackPlacer : MonoBehaviour
     [Tooltip("Padding from the room's (0,0,0) corner to start placing racks.")]
     public Vector3 layoutStartOffset = new Vector3(2.0f, 0, 2.0f);
 
-    // "Dirty" flag to safely update from OnValidate
+
+    // --- NEW VARIABLE ---
+    [Header("Dependencies")]
+    [Tooltip("(Optional) The transceiver placer script to trigger after racks are built.")]
+    public ProceduralTransceiverPlacer proceduralTransceiverPlacer;
+
+    // --- Public container for other scripts to find ---
     [HideInInspector]
-    private bool isDirty = true;
+    public Transform rackContainer;
+
+    [HideInInspector]
+    public bool isDirty = false;
+    private const string RACK_CONTAINER_NAME = "RackGeometry";
 
     // Called in the editor when a value is changed
     private void OnValidate()
@@ -57,31 +67,49 @@ public class ProceduralRackPlacer : MonoBehaviour
         coldAisleWidth = Mathf.Max(0.1f, coldAisleWidth);
         hotAisleWidth = Mathf.Max(0.1f, hotAisleWidth);
         layoutStartOffset.y = Mathf.Max(0, layoutStartOffset.y);
-        
+
         // Flag that we need to regenerate
         isDirty = true;
     }
 
-    // Update is called in the editor (and play mode)
     private void Update()
     {
-        // Only run if the flag is raised
-        if (isDirty)
+        // Only run if we are in the editor and the dirty flag is set
+        if (isDirty && !Application.isPlaying)
         {
             GenerateRacks();
-            isDirty = false;
+            isDirty = false; // Clear the flag
         }
     }
 
     /// <summary>
-    /// Clears all previously generated racks (children of this object).
+    /// Creates (or finds) the container for all rack geometry
+    /// </summary>
+    private void FindOrCreateContainer()
+    {
+        rackContainer = transform.Find(RACK_CONTAINER_NAME);
+        if (rackContainer == null)
+        {
+            rackContainer = new GameObject(RACK_CONTAINER_NAME).transform;
+            rackContainer.SetParent(this.transform);
+            rackContainer.localPosition = Vector3.zero;
+            rackContainer.localRotation = Quaternion.identity;
+        }
+    }
+
+    /// <summary>
+    /// Clears all previously generated racks.
     /// </summary>
     private void ClearRacks()
     {
-        // This loop is now safe because it's called from Update()
-        for (int i = transform.childCount - 1; i >= 0; i--)
+        if (rackContainer == null)
         {
-            GameObject child = transform.GetChild(i).gameObject;
+            FindOrCreateContainer();
+        }
+
+        for (int i = rackContainer.childCount - 1; i >= 0; i--)
+        {
+            GameObject child = rackContainer.GetChild(i).gameObject;
             if (Application.isPlaying)
                 Destroy(child);
             else
@@ -92,9 +120,10 @@ public class ProceduralRackPlacer : MonoBehaviour
     /// <summary>
     /// Generates and places all racks based on the layout parameters.
     /// </summary>
+    [ContextMenu("Generate Racks")]
     public void GenerateRacks()
     {
-        ClearRacks();
+        ClearRacks(); // This also finds/creates the container
 
         if (rackPrefab == null)
         {
@@ -102,39 +131,36 @@ public class ProceduralRackPlacer : MonoBehaviour
             return;
         }
 
-        // --- Layout Calculation ---
         float currentX = 0;
-        float currentZ = layoutStartOffset.z; // Start Z at the offset
+        float currentZ = 0;
         int rowCount = 0;
         
-        // Place the racks *on top* of the floor (Y=0)
-        float yPos = layoutStartOffset.y + (rackHeight / 2.0f);
+        // This places the racks *on top* of the floor (Y=0)
+        float yPos = (rackHeight / 2.0f) + layoutStartOffset.y;
 
         for (int i = 0; i < totalRacks; i++)
         {
             // --- Position Calculation ---
             int col = i % racksPerRow;
-            // X position is offset + (column * width)
             currentX = layoutStartOffset.x + (col * rackWidth);
-            
-            // Rack's pivot is in its center, so offset by half-dimensions
-            Vector3 position = new Vector3(currentX + (rackWidth / 2.0f), yPos, currentZ + (rackDepth / 2.0f));
-            Quaternion rotation = Quaternion.identity; // Facing forward (+Z)
+
+            // --- Instantiate & Configure Rack ---
+            // We offset Z by half the depth so the "center" of the rack is on the line
+            Vector3 position = new Vector3(currentX, yPos, currentZ + layoutStartOffset.z + (rackDepth / 2.0f));
+            Quaternion rotation = Quaternion.identity; // Facing forward (positive Z)
 
             // Every even row (0, 2, 4...) faces "forward"
-            // Every odd row (1, 3, 5...) faces "backward" (180 deg)
+            // Every odd row (1, 3, 5...) faces "backward" (180 degrees)
             if (rowCount % 2 != 0)
             {
                 rotation = Quaternion.Euler(0, 180, 0);
             }
 
-            // --- Instantiate & Configure Rack ---
-            GameObject newRack = Instantiate(rackPrefab, this.transform);
+            GameObject newRack = Instantiate(rackPrefab, rackContainer);
             newRack.name = $"Rack_{i:D3}"; // e.g., Rack_001
             newRack.transform.localPosition = position;
             newRack.transform.localRotation = rotation;
             
-            // Set scale from our variables
             newRack.transform.localScale = new Vector3(rackWidth*0.94f, rackHeight, rackDepth); // Slightly narrower widths to distinguish each rack
 
             // Apply material
@@ -167,6 +193,13 @@ public class ProceduralRackPlacer : MonoBehaviour
                     currentZ += coldAisleWidth;
                 }
             }
+        }
+        
+        // --- NEW LINE ---
+        // After we are all done, tell the transceiver placer to update
+        if (proceduralTransceiverPlacer != null)
+        {
+            proceduralTransceiverPlacer.SetDirty();
         }
     }
 }
