@@ -1,6 +1,6 @@
-# HPC Digital Twin - Procedural Infrastructure Generator
+# WINE cellar: HPC Digital Twin for the WINE framework
 
-This Unity project provides a high-fidelity digital twin of a High-Performance Computing (HPC) data center. It is a simulation environment designed to be a realistic and rigorous platform for wireless framework research.
+This Unity project provides a high-fidelity digital twin wireless environment of a High-Performance Computing (HPC) facility. It is a simulation environment designed to be a realistic and rigorous platform for wireless framework research.
 
 ## Research Background
 
@@ -16,7 +16,7 @@ This project serves as a second-generation, high-fidelity simulation testbed for
 This new, more realistic and rigorous digital twin is designed to investigate high-throughput, low-latency wireless link performance within complex data center environments. The primary purpose of this tool is to model and analyze how key infrastructure design choices dynamically influence wireless propagation. This includes parameters such as the 3D room dimensions, rack placement (which creates complex LOS/NLOS paths), and the spatial distribution of Intelligent Reflecting Surfaces (IRSs) on the ceiling. The environment allows for the analysis of various communication paths (e.g., s-WINE and r-WINE) by providing a geometrically accurate and parametrically-controlled simulation space.
 
 ## Features
-
+### Procedural WINE Infrastructure Generator
 * **`ProceduralRoomGenerator.cs`**: Creates the main room structure (floor, walls, ceiling) based on `roomWidth`, `roomHeight`, and `roomDepth`.
 * **`ProceduralRackPlacer.cs`**: Automatically populates the room with a specified number of racks in a configurable "hot aisle / cold aisle" layout.
 * **`ProceduralLightPlacer.cs`**: Dynamically adds realtime Point Lights along the ceiling edges, leaving the central ceiling area open for other equipment (like IRS arrays).
