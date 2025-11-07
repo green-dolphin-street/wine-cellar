@@ -10,9 +10,9 @@ public class ProceduralRoomGenerator : MonoBehaviour
 {
     [Header("Room Dimensions")]
     [Tooltip("Room width on the X-axis.")]
-    public float roomWidth = 10f;
+    public float roomWidth = 16f;
     [Tooltip("Room height on the Y-axis.")]
-    public float roomHeight = 3f;
+    public float roomHeight = 5f;
     [Tooltip("Room depth on the Z-axis.")]
     public float roomDepth = 15f;
 
