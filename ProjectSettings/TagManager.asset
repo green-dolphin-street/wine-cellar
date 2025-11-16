@@ -6,6 +6,7 @@ TagManager:
   tags:
   - FS_Receiver
   - Obstacle
+  - IRS_Element
   layers:
   - Default
   - TransparentFX
