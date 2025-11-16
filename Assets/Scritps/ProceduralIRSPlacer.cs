@@ -142,10 +142,9 @@ public class ProceduralIRSPlacer : MonoBehaviour
         backplane.transform.SetParent(geometryContainer);
         // Use the new backplane dimensions
         backplane.transform.localScale = new Vector3(totalBackplaneWidth, backplaneThickness, totalBackplaneDepth);
-
+        
         // Position the backplane at the center, with its top surface at the center's Y
         backplane.transform.position = arrayCenterPosition - new Vector3(0, backplaneThickness / 2.0f, 0);
-        backplane.tag = "Obstacle";
 
         if (backplaneMaterial != null)
         {
@@ -183,8 +182,6 @@ public class ProceduralIRSPlacer : MonoBehaviour
                 float zPos = elementStartPos.z + z * (elementSize + elementSpacing);
                 // MODIFIED: Use the new 'elementYPos' instead of 'arrayCenterPosition.y'
                 element.transform.position = new Vector3(xPos, elementYPos, zPos);
-
-                element.tag = "IRS_Element";
 
                 // Apply material
                 if (elementMaterial != null)

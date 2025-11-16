@@ -13,11 +13,6 @@ public class GaussianBeam : MonoBehaviour
     [SerializeField] private bool isBlocked = false;
     [SerializeField] private Collider blockingObject = null;
 
-    // --- Public visual parameters ---
-    [Header("Visuals")]
-    [Tooltip("The speed of the blink (blinks per second).")]
-    public float blinkSpeed = 5.0f;
-
     // --- Private References ---
     private Transform receiverRoot; // The root of the intended receiver
     private GaussianBeamCollider beamCollider;
@@ -117,25 +112,13 @@ public class GaussianBeam : MonoBehaviour
         // If it's NOT our receiver, it's a blockage.
         isBlocked = true;
         blockingObject = other;
-
-        // --- MODIFIED BLINK LOGIC ---
-        // We check the time to create a 50/50 on/off cycle.
-        // This works because this function is re-triggered constantly by the FSOLinkManager.
-        float blinkCycle = (Time.time * blinkSpeed) % 1.0f;
-        if (blinkCycle > 0.5f)
-        {
-            // "On" state: Use the link's default color (yellow-ish or red)
-            lineMaterial.color = defaultBeamColor;
-        }
-        else
-        {
-            // "Off" state: Use a dim, semi-transparent version of the default color
-            Color darkDefaultColor = defaultBeamColor * 0.2f;
-            darkDefaultColor.a = 0.5f;
-            lineMaterial.color = darkDefaultColor;
-        }
+        lineMaterial.color = Color.red;
 
         Debug.Log($"Link '{name}' was blocked by '{other.name}'!");
         
+        // --- TODO: Update Link Budget ---
+        // Here you would call your link budget script and tell it
+        // this link is now blocked.
+        // Example: linkBudget.SetLinkStatus(this, LinkStatus.Blocked);
     }
 }
