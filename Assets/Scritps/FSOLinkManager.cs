@@ -38,14 +38,40 @@ public class FSOLinkManager : MonoBehaviour
     // Store a reference to the beams we create
     private List<GaussianBeam> activeLinks = new List<GaussianBeam>();
 
-    // We use OnValidate to see changes live in the editor
+    // --- NEW: Add the dirty flag ---
+    private bool isDirty = false;
+
+    // OnValidate is called when a value is changed in the Inspector.
     private void OnValidate()
     {
-        if (Application.isPlaying)
+        // OnValidate is "unsafe" for Instantiate/Destroy.
+        // Instead of doing work, we just "raise a flag"
+        // to tell the Update loop to do the work.
+        isDirty = true;
+        
+        // if (Application.isPlaying)
+        // {
+        //     GenerateLinks(); // <-- This causes the error
+        // }
+    }
+
+    // --- NEW: Add the Update() function to safely do the work ---
+    private void Update()
+    {
+        // Check the flag every frame
+        if (isDirty)
         {
-            GenerateLinks();
+            // Only run in play mode, as per your original logic
+            if (Application.isPlaying)
+            {
+                GenerateLinks();
+            }
+            
+            // Reset the flag so we don't run this every frame
+            isDirty = false;
         }
     }
+
 
     /// <summary>
     /// This is the main function. It clears all old beams and builds new ones.
@@ -106,35 +132,31 @@ public class FSOLinkManager : MonoBehaviour
                 continue;
             }
 
-            // --- 2. Get INITIAL positions ---
-            // Get the receiver's current lens position to use as a target
-            Vector3 endPos_v1 = rxLens.position; 
-
-            // --- 3. AIM THE TRANSMITTER ---
-            AimTransceiver(transmitter, endPos_v1);
+            // --- 2. AIM THE TRANSCEIVERS ---
+            // We must aim *before* getting the lens positions,
+            // as aiming moves the lenses.
             
-            // --- 4. Get the transmitter's NEW position ---
-            // (It has moved because it's now aimed)
-            Vector3 startPos_v2 = txLens.position; 
+            // Aim Tx at the Rx's current lens position
+            AimTransceiver(transmitter, rxLens.position); 
+            
+            // Aim Rx at the Tx's current lens position
+            AimTransceiver(receiver, txLens.position);
 
-            // --- 5. AIM THE RECEIVER ---
-            // Aim the receiver at the transmitter's new, aimed position
-            AimTransceiver(receiver, startPos_v2);
+            // --- 3. GET FINAL LENS POSITIONS ---
+            // Now that both are aimed, get their *final* world positions
+            Vector3 startPos = txLens.position;
+            Vector3 endPos = rxLens.position;
 
-            // --- 6. GET THE RECEIVER'S NEW POSITION (THE FIX) ---
-            // (It has also moved because it's now aimed)
-            Vector3 endPos_v2 = rxLens.position;
-
-            // --- 7. Create the Beam ---
+            // --- 4. Create the Beam ---
             GameObject beamObj = Instantiate(beamPrefab, this.transform);
             beamObj.name = $"Beam_{link.name}";
 
             GaussianBeam beam = beamObj.GetComponent<GaussianBeam>();
             
-            // Initialize the beam with the *correct, final* start/end positions
+            // Initialize the beam with the correct, final start/end positions
             beam.Initialize(
-                startPos_v2,    // The *new* lens position
-                endPos_v2,      // The *new* lens position
+                startPos,
+                endPos,
                 receiver,       // The *root* of the receiver, for collision ignoring
                 beamWaist,
                 wavelength
@@ -145,13 +167,12 @@ public class FSOLinkManager : MonoBehaviour
     }
 
     /// <summary>
+    // --- COMPLETELY REWRITTEN AimTransceiver ---
     /// Rotates the gimbal components of a transceiver to aim at a target.
+    /// This logic is now robust and handles all root rotations.
     /// </summary>
-    /// <param name="transceiverRoot">The root FSO_Trcansceiver_Prefab</param>
-    /// <param name="targetPosition">The world-space point to aim at</param>
     private void AimTransceiver(Transform transceiverRoot, Vector3 targetPosition)
     {
-        // Find the two pivot points in the prefab's hierarchy
         Transform basePivot = transceiverRoot.Find("Gimbal_Base_Pivot");
         Transform yokePivot = basePivot?.Find("Gimbal_Yoke_Pivot");
 
@@ -161,26 +182,44 @@ public class FSOLinkManager : MonoBehaviour
             return;
         }
 
-        // --- YAW (Left/Right) CALCULATION ---
-        Vector3 worldTargetDir = targetPosition - basePivot.position;
-        Vector3 worldPlaneNormal = transceiverRoot.up;
-        Vector3 yawTargetDir_Projected = Vector3.ProjectOnPlane(worldTargetDir, worldPlaneNormal).normalized;
-        Vector3 rootWorldForward = transceiverRoot.forward;
-        float yawAngle = Vector3.SignedAngle(rootWorldForward, yawTargetDir_Projected, worldPlaneNormal);
-        basePivot.localRotation = Quaternion.Euler(0, yawAngle, 0);
+        // --- YAW (Left/Right) ---
+        // 1. Get the target direction from the base pivot's point of view
+        Vector3 targetDir = targetPosition - basePivot.position;
 
-        // --- PITCH (Up/Down) CALCULATION ---
-        worldTargetDir = targetPosition - yokePivot.position;
-        Vector3 yokeWorldRight = yokePivot.right;
-        Vector3 pitchTargetDir_Projected = Vector3.ProjectOnPlane(worldTargetDir, yokeWorldRight).normalized;
-        Vector3 yokeWorldForward = yokePivot.forward;
-        float pitchAngle = Vector3.SignedAngle(yokeWorldForward, pitchTargetDir_Projected, yokeWorldRight);
-        yokePivot.localRotation = Quaternion.Euler(pitchAngle, 0, 0);
+        // 2. Project this direction onto the *root's* horizontal plane (which is aligned with the rack)
+        // We use the root's "up" vector as the plane's normal
+        Vector3 horizontalDir = Vector3.ProjectOnPlane(targetDir, transceiverRoot.up).normalized;
+
+        // 3. Create a world-space rotation that looks in this horizontal direction
+        // We use the root's "up" as the up-vector for this rotation
+        Quaternion targetYaw = Quaternion.LookRotation(horizontalDir, transceiverRoot.up);
+        
+        // 4. Apply this world rotation directly to the base pivot.
+        //    This correctly overrides any parent rotation (like the 180-deg rack).
+        basePivot.rotation = targetYaw;
+
+        
+        // --- PITCH (Up/Down) ---
+        // 1. Get the target direction from the yoke pivot's point of view
+        targetDir = targetPosition - yokePivot.position;
+
+        // 2. Project the direction onto the yoke's *local vertical plane*
+        //    The plane's normal is the yoke's "right" vector (the axis we pivot around)
+        Vector3 yokeRight = yokePivot.right;
+        Vector3 pitchDir = Vector3.ProjectOnPlane(targetDir, yokeRight).normalized;
+
+        // 3. Create a world-space rotation that looks in this new direction
+        //    We use the yoke's "up" as the up-vector
+        Quaternion targetPitch = Quaternion.LookRotation(pitchDir, yokePivot.up);
+
+        // 4. Apply this world rotation directly to the yoke pivot.
+        yokePivot.rotation = targetPitch;
     }
 }
 
 /// <summary>
 /// Helper class to find a child Transform by name, even if it's deep in the hierarchy.
+/// (This is already in your repo, but including for completeness)
 /// </summary>
 public static class TransformExtensions
 {

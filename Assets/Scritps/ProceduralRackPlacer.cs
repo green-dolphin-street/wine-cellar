@@ -163,6 +163,8 @@ public class ProceduralRackPlacer : MonoBehaviour
             
             newRack.transform.localScale = new Vector3(rackWidth*0.94f, rackHeight, rackDepth); // Slightly narrower widths to distinguish each rack
 
+            newRack.tag = "Obstacle";
+
             // Apply material
             Renderer rend = newRack.GetComponent<Renderer>();
             if (rend != null && rackMaterial != null)

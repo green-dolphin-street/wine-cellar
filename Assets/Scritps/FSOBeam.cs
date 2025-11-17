@@ -109,16 +109,10 @@ public class GaussianBeam : MonoBehaviour
             return;
         }
 
-        // If it's NOT our receiver, it's a blockage.
         isBlocked = true;
         blockingObject = other;
-        lineMaterial.color = Color.red;
+        lineMaterial.color = Color.black;
 
         Debug.Log($"Link '{name}' was blocked by '{other.name}'!");
-        
-        // --- TODO: Update Link Budget ---
-        // Here you would call your link budget script and tell it
-        // this link is now blocked.
-        // Example: linkBudget.SetLinkStatus(this, LinkStatus.Blocked);
     }
 }
