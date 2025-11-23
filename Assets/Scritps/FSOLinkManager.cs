@@ -15,6 +15,8 @@ public class FSOLinkManager : MonoBehaviour
         public int transmitterIndex;
         [Tooltip("The index of the receiving rack (e.g., 5 for the sixth rack).")]
         public int receiverIndex;
+        [Tooltip("The index of the reflecting IRS element (e.g., 0 for the first element in the X-Z plane). Set this to -1 if using s-WINE.")]
+        public int reflectingElementIndex = -1;
     }
 
     [Header("Link Setup")]
@@ -24,6 +26,7 @@ public class FSOLinkManager : MonoBehaviour
     [Header("Dependencies")]
     [Tooltip("The script that contains all the generated transceiver objects.")]
     public ProceduralTransceiverPlacer transceiverPlacer;
+    public ProceduralIRSPlacer irsPlacer;
     
     [Tooltip("A list of all transmitter/receiver pairs to create links for.")]
     public List<LinkDefinition> links = new List<LinkDefinition>();
@@ -60,7 +63,6 @@ public class FSOLinkManager : MonoBehaviour
         }
     }
 
-
     /// <summary>
     /// This is the main function. It clears all old beams and builds new ones.
     /// You can call this from a UI button.
@@ -80,6 +82,12 @@ public class FSOLinkManager : MonoBehaviour
             return;
         }
 
+        if (irsPlacer == null)
+        {
+            Debug.LogError("IRS Placer script is not assigned! Please drag the [IRS] GameObject into the slot.", this);
+            return;
+        }
+
         // Clear old links
         foreach (GaussianBeam oldLink in activeLinks)
         {
@@ -89,10 +97,20 @@ public class FSOLinkManager : MonoBehaviour
         activeLinks.Clear();
 
         Transform transceiverContainer = transceiverPlacer.transform;
+        Transform irsContainer = irsPlacer.transform;
 
         // Create new links
         foreach (LinkDefinition link in links)
         {
+            if(link.reflectingElementIndex==-1)
+            {
+                link.name = $"sWINE_Tx{link.transmitterIndex}_Rx{link.receiverIndex}";
+            }
+            else
+            {
+                link.name = $"rWINE_Tx{link.transmitterIndex}_Refl{link.reflectingElementIndex}_Rx{link.receiverIndex}";
+            }
+
             if (link.transmitterIndex >= transceiverContainer.childCount || 
                 link.receiverIndex >= transceiverContainer.childCount ||
                 link.transmitterIndex < 0 || link.receiverIndex < 0)
@@ -104,52 +122,104 @@ public class FSOLinkManager : MonoBehaviour
             Transform transmitter = transceiverContainer.GetChild(link.transmitterIndex);
             Transform receiver = transceiverContainer.GetChild(link.receiverIndex);
             
-            if (transmitter == null || receiver == null)
+            if (link.reflectingElementIndex == -1) // s-WINE
             {
-                Debug.LogWarning($"Skipping link '{link.name}' due to missing Tx or Rx.");
-                continue;
+                if (transmitter == null || receiver == null)
+                {
+                    Debug.LogWarning($"Skipping link '{link.name}' due to missing Tx or Rx.");
+                    continue;
+                }
+
+                // --- 1. Get references to the lens transforms ---
+                Transform txLens = transmitter.FindDeepChild("Lens_Aperture_Mesh");
+                Transform rxLens = receiver.FindDeepChild("Lens_Aperture_Mesh");
+
+                if (txLens == null || rxLens == null)
+                {
+                    Debug.LogError($"Could not find 'Lens_Aperture_Mesh' in {link.name}. Make sure prefabs are correct.");
+                    continue;
+                }
+
+                // --- 2. AIM THE TRANSCEIVERS ---
+                // We must aim *before* getting the lens positions,
+                // as aiming moves the lenses.
+                
+                // Aim Tx at the Rx's current lens position (and then vice versa)
+                AimTransceiver(transmitter, rxLens.position); 
+                AimTransceiver(receiver, txLens.position);
+
+                // Now that both are aimed, get their *final* world positions
+                Vector3 startPos = txLens.position;
+                Vector3 endPos = rxLens.position;
+
+                // --- 3. Create the Beam ---
+                GameObject beamObj = Instantiate(beamPrefab, this.transform);
+                beamObj.name = $"{link.name}";
+
+                GaussianBeam beam = beamObj.GetComponent<GaussianBeam>();
+                
+                // Initialize the beam with the correct, final start/end positions
+                beam.Initialize(
+                    startPos,
+                    endPos,
+                    transmitter,
+                    receiver,
+                    beamWaist,
+                    wavelength
+                );
+                
+                activeLinks.Add(beam);
             }
-
-            link.name = $"Tx{link.transmitterIndex}_Rx{link.receiverIndex}";
-            // --- 1. Get references to the lens transforms ---
-            Transform txLens = transmitter.FindDeepChild("Lens_Aperture_Mesh");
-            Transform rxLens = receiver.FindDeepChild("Lens_Aperture_Mesh");
-
-            if (txLens == null || rxLens == null)
+            else // r-WINE
             {
-                Debug.LogError($"Could not find 'Lens_Aperture_Mesh' in {link.name}. Make sure prefabs are correct.");
-                continue;
+                if (link.reflectingElementIndex >= irsPlacer.elementCountX*irsPlacer.elementCountZ || 
+                link.reflectingElementIndex < 0)
+                {
+                    Debug.LogWarning($"Skipping link '{link.name}'. Reflecting element index is out of range. Max index is {irsPlacer.elementCountX*irsPlacer.elementCountZ - 1}.");
+                    continue;
+                }
+                // --- 1. Get references to the lens transforms ---
+                Transform txLens = transmitter.FindDeepChild("Lens_Aperture_Mesh");
+                Transform rxLens = receiver.FindDeepChild("Lens_Aperture_Mesh");
+                Transform reflectingElement = irsPlacer.GetIRSElement(link.reflectingElementIndex);
+                // Debug.Log($"reflectingElement: {reflectingElement.transform.name}");
+                
+                // --- 2. AIM THE TRANSCEIVERS ---
+                AimTransceiver(transmitter, reflectingElement.position); 
+                AimTransceiver(receiver, reflectingElement.position);
+                Vector3 startPos = txLens.position;
+                Vector3 endPos = rxLens.position;
+                
+                // --- 3. Create the Beam ---
+                GameObject beamObj = Instantiate(beamPrefab, this.transform);
+                beamObj.name = $"rWINE_Tx{link.transmitterIndex}_Refl{link.reflectingElementIndex}";
+                GaussianBeam beam = beamObj.GetComponent<GaussianBeam>();
+                beam.Initialize(
+                    startPos,
+                    reflectingElement.position,
+                    transmitter,
+                    reflectingElement,
+                    beamWaist,
+                    wavelength
+                );
+
+                GameObject beamObj2 = Instantiate(beamPrefab, this.transform);
+                beamObj2.name = $"rWINE_Refl{link.reflectingElementIndex}_Rx{link.receiverIndex}";
+                GaussianBeam beam2 = beamObj2.GetComponent<GaussianBeam>();
+                beam2.Initialize(
+                    reflectingElement.position,
+                    endPos,
+                    reflectingElement,
+                    receiver,
+                    beamWaist,
+                    wavelength
+                );
+                
+                beamObj.GetComponent<LineRenderer>().material.color = Color.red;
+                beamObj2.GetComponent<LineRenderer>().material.color = Color.red;
+                activeLinks.Add(beam);
+                activeLinks.Add(beam2);
             }
-
-            // --- 2. AIM THE TRANSCEIVERS ---
-            // We must aim *before* getting the lens positions,
-            // as aiming moves the lenses.
-            
-            // Aim Tx at the Rx's current lens position (and then vice versa)
-            AimTransceiver(transmitter, rxLens.position); 
-            AimTransceiver(receiver, txLens.position);
-
-            // Now that both are aimed, get their *final* world positions
-            Vector3 startPos = txLens.position;
-            Vector3 endPos = rxLens.position;
-
-            // --- 3. Create the Beam ---
-            GameObject beamObj = Instantiate(beamPrefab, this.transform);
-            beamObj.name = $"sWINE_{link.name}";
-
-            GaussianBeam beam = beamObj.GetComponent<GaussianBeam>();
-            
-            // Initialize the beam with the correct, final start/end positions
-            beam.Initialize(
-                startPos,
-                endPos,
-                transmitter,
-                receiver,
-                beamWaist,
-                wavelength
-            );
-            
-            activeLinks.Add(beam);
         }
     }
 

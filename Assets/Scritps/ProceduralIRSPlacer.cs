@@ -193,4 +193,33 @@ public class ProceduralIRSPlacer : MonoBehaviour
             }
         }
     }
+
+    /// <summary>
+    /// Retrieves the IRS element at the specified linear index.
+    /// Elements are generated in row-major order (X then Z).
+    /// </summary>
+    public Transform GetIRSElement(int index)
+    {
+        if (geometryContainer == null)
+        {
+            geometryContainer = transform.Find("IRS_Array_Geometry");
+        }
+        
+        // Filter for just the elements, as the backplane is also a child
+        List<Transform> elements = new List<Transform>();
+        foreach(Transform child in geometryContainer)
+        {
+            if (child.tag == "IRS_Element")
+            {
+                elements.Add(child);
+            }
+        }
+
+        if (index >= 0 && index < elements.Count)
+        {
+            return elements[index];
+        }
+        
+        return null;
+    }
 }
