@@ -35,10 +35,8 @@ public class FSOLinkManager : MonoBehaviour
     [Tooltip("λ = Wavelength of the light (in meters)")]
     public float wavelength = 1550e-9f; // 1550nm
 
-    // Store a reference to the beams we create
     private List<GaussianBeam> activeLinks = new List<GaussianBeam>();
 
-    // --- NEW: Add the dirty flag ---
     private bool isDirty = false;
 
     // OnValidate is called when a value is changed in the Inspector.
@@ -48,26 +46,16 @@ public class FSOLinkManager : MonoBehaviour
         // Instead of doing work, we just "raise a flag"
         // to tell the Update loop to do the work.
         isDirty = true;
-        
-        // if (Application.isPlaying)
-        // {
-        //     GenerateLinks(); // <-- This causes the error
-        // }
     }
 
-    // --- NEW: Add the Update() function to safely do the work ---
     private void Update()
     {
-        // Check the flag every frame
         if (isDirty)
         {
-            // Only run in play mode, as per your original logic
             if (Application.isPlaying)
             {
                 GenerateLinks();
             }
-            
-            // Reset the flag so we don't run this every frame
             isDirty = false;
         }
     }
@@ -122,6 +110,7 @@ public class FSOLinkManager : MonoBehaviour
                 continue;
             }
 
+            link.name = $"Tx{link.transmitterIndex}_Rx{link.receiverIndex}";
             // --- 1. Get references to the lens transforms ---
             Transform txLens = transmitter.FindDeepChild("Lens_Aperture_Mesh");
             Transform rxLens = receiver.FindDeepChild("Lens_Aperture_Mesh");
@@ -136,20 +125,17 @@ public class FSOLinkManager : MonoBehaviour
             // We must aim *before* getting the lens positions,
             // as aiming moves the lenses.
             
-            // Aim Tx at the Rx's current lens position
+            // Aim Tx at the Rx's current lens position (and then vice versa)
             AimTransceiver(transmitter, rxLens.position); 
-            
-            // Aim Rx at the Tx's current lens position
             AimTransceiver(receiver, txLens.position);
 
-            // --- 3. GET FINAL LENS POSITIONS ---
             // Now that both are aimed, get their *final* world positions
             Vector3 startPos = txLens.position;
             Vector3 endPos = rxLens.position;
 
-            // --- 4. Create the Beam ---
+            // --- 3. Create the Beam ---
             GameObject beamObj = Instantiate(beamPrefab, this.transform);
-            beamObj.name = $"Beam_{link.name}";
+            beamObj.name = $"sWINE_{link.name}";
 
             GaussianBeam beam = beamObj.GetComponent<GaussianBeam>();
             
@@ -157,7 +143,8 @@ public class FSOLinkManager : MonoBehaviour
             beam.Initialize(
                 startPos,
                 endPos,
-                receiver,       // The *root* of the receiver, for collision ignoring
+                transmitter,
+                receiver,
                 beamWaist,
                 wavelength
             );
@@ -167,9 +154,7 @@ public class FSOLinkManager : MonoBehaviour
     }
 
     /// <summary>
-    // --- COMPLETELY REWRITTEN AimTransceiver ---
     /// Rotates the gimbal components of a transceiver to aim at a target.
-    /// This logic is now robust and handles all root rotations.
     /// </summary>
     private void AimTransceiver(Transform transceiverRoot, Vector3 targetPosition)
     {
@@ -219,7 +204,7 @@ public class FSOLinkManager : MonoBehaviour
 
 /// <summary>
 /// Helper class to find a child Transform by name, even if it's deep in the hierarchy.
-/// (This is already in your repo, but including for completeness)
+/// (This is already in the repo, but including for completeness)
 /// </summary>
 public static class TransformExtensions
 {

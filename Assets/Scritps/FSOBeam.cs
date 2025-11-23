@@ -13,16 +13,14 @@ public class GaussianBeam : MonoBehaviour
     [SerializeField] private bool isBlocked = false;
     [SerializeField] private Collider blockingObject = null;
 
-    // --- Private References ---
-    private Transform receiverRoot; // The root of the intended receiver
+    private Transform receiverRoot;
+    private Transform transmitterRoot;
     private GaussianBeamCollider beamCollider;
     private LineRenderer lineRenderer;
-    private Material lineMaterial; // To change color
+    private Material lineMaterial;
 
-    // --- NEW: We'll store your material's original color ---
     private Color defaultBeamColor;
 
-    // Parameters passed from the manager
     private float beamWaist_w0;
     private float wavelength_lambda;
     private float linkDistance;
@@ -36,19 +34,17 @@ public class GaussianBeam : MonoBehaviour
         // Store the original material to reset the color
         // We create a new instance so each beam can change color independently
         lineMaterial = new Material(lineRenderer.material);
-        
-        // --- NEW: Store the original color from your prefab ---
         defaultBeamColor = lineMaterial.color; 
-        
         lineRenderer.material = lineMaterial;
     }
 
     /// <summary>
-    /// Initializes this beam instance with parameters from the manager.
+    /// Initializes beam instance with parameters from FSOLinkManager.
     /// </summary>
-    public void Initialize(Vector3 startPos, Vector3 endPos, Transform rxRoot, float waist, float wavelength)
+    public void Initialize(Vector3 startPos, Vector3 endPos, Transform txRoot, Transform rxRoot, float waist, float wavelength)
     {
         this.receiverRoot = rxRoot;
+        this.transmitterRoot = txRoot;
         this.beamWaist_w0 = waist;
         this.wavelength_lambda = wavelength;
 
@@ -76,23 +72,16 @@ public class GaussianBeam : MonoBehaviour
         ResetStatus();
     }
 
-    /// <summary>
-    /// Resets the blockage status of this link.
-    /// </summary>
     public void ResetStatus()
     {
         isBlocked = false;
         blockingObject = null;
         if (lineMaterial != null)
         {
-            // --- MODIFIED: Use the stored default color instead of hard-coding green ---
             lineMaterial.color = defaultBeamColor;
         }
     }
 
-    /// <summary>
-    /// This is the core collision logic.
-    /// </summary>
     void OnTriggerEnter(Collider other)
     {
         // If we are already blocked, don't do anything else
@@ -101,11 +90,12 @@ public class GaussianBeam : MonoBehaviour
         // If we hit ourselves (which can happen at the start), ignore it
         if (other.transform.root == this.transform.root) return;
 
+        // If we hit the transmitter, ignore it
+        if (other.transform.IsChildOf(transmitterRoot)) return;
+
         // Check if the object we hit is our intended receiver
-        // We check the root, as the receiver prefab may have many child colliders
-        if (other.transform.root == receiverRoot)
+        if (other.transform.IsChildOf(receiverRoot))
         {
-            // This is a successful hit on the receiver, ignore it.
             return;
         }
 
@@ -113,6 +103,6 @@ public class GaussianBeam : MonoBehaviour
         blockingObject = other;
         lineMaterial.color = Color.black;
 
-        Debug.Log($"Link '{name}' was blocked by '{other.name}'!");
+        Debug.Log($"'{name}' was blocked by '{other.transform.parent.parent.parent.name}'!");
     }
 }
