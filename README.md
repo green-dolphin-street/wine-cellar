@@ -1,75 +1,56 @@
 # WINE cellar: HPC Digital Twin for the WINE framework
 
-This Unity project provides a high-fidelity digital twin wireless environment of a High-Performance Computing (HPC) facility. It is a simulation environment designed to be a realistic and rigorous platform for wireless framework research.
+This Unity project provides a high-fidelity digital twin wireless environment of a High-Performance Computing (HPC) facility. It is a simulation environment designed to be a realistic and rigorous platform for wireless interconnection network (WINE) framework research. It is designed to investigate high-throughput, low-latency wireless link performance within data center environments.
 
-## Research Background
+The primary purpose is to model and analyze how key infrastructure design choices, such as 3D room dimensions, rack placement, and Intelligent Reflecting Surfaces (IRS) distribution, dynamically influence wireless propagation. The environment supports the analysis of two WINE link types:
+*   **s-WINE**: Direct Line-of-Sight (LoS) links between the transceivers mounted on the racks.
+*   **r-WINE**: Non-Line-of-Sight (NLoS) links reflected via IRS elements mounted on the ceiling.
 
-This project serves as a second-generation, high-fidelity simulation testbed for the WINE (Wireless Infrastructure for Network Emulation) framework. The initial concepts and testbed were introduced in our prior work:
-> Self et al., "WINE: A Wireless Infrastructure for Network Emulation of Future Data Centers," in *IEEE Communications*, vol. 31, no. 6, pp. 126-134, Dec. 2024.
->
-> **DOI:** 10.1109/MWC.018.2300524
->
-> **Link:**
->   - https://ieeexplore.ieee.org/document/10787349/
->   - https://arxiv.org/abs/2409.13281
+## Workflow
 
-This new, more realistic and rigorous digital twin is designed to investigate high-throughput, low-latency wireless link performance within complex data center environments. The primary purpose of this tool is to model and analyze how key infrastructure design choices dynamically influence wireless propagation. This includes parameters such as the 3D room dimensions, rack placement (which creates complex LOS/NLOS paths), and the spatial distribution of Intelligent Reflecting Surfaces (IRSs) on the ceiling. The environment allows for the analysis of various communication paths (e.g., s-WINE and r-WINE) by providing a geometrically accurate and parametrically-controlled simulation space.
+To set up and run a simulation, follow these steps:
 
-## Features
-### Procedural WINE Infrastructure Generator
-* **Safe Editor-Time Generation**: All procedural scripts use `[ExecuteInEditMode]` combined with an `isDirty` flag pattern. This provides instant, real-time updates in the editor as you change parameters, while avoiding common Unity errors.
-* **`ProceduralRoomGenerator.cs`**: Creates the main room structure (floor, walls, ceiling) based on `roomWidth`, `roomHeight`, and `roomDepth`.
-* **`ProceduralRackPlacer.cs`**: Automatically populates the room with a specified number of racks in a configurable "hot aisle / cold aisle" layout.
-* **`ProceduralLightPlacer.cs`**: Dynamically adds realtime Point Lights along the ceiling edges, leaving the central ceiling area open for other equipment (like IRS arrays).
-* **`ProceduralTransceiverPlacer.cs`**: Automatically places transceiver modules onto each rack.
+1.  **Environment Setup**:
+    *   Select the **`MachineRoom`** object to configure the overall room dimensions (`roomWidth`, `roomHeight`, `roomDepth`).
+    *   Select the **`Racks`** object to configure rack layout (rows, aisles, counts).
+    *   Select the **`Lighting`** object to adjust procedural lighting.
 
-## Getting Started & Scene Hierarchy
+2.  **IRS Configuration**:
+    *   Select the **`[IRS]`** object (which uses `ProceduralIRSPlacer.cs`).
+    *   Adjust parameters like `elementCountX`, `elementCountZ`, `elementSize`, and `ceilingOffset` to generate the IRS array on the ceiling.
+    *   The array will automatically regenerate in the Editor when parameters change.
 
-This project is designed to be used directly from the Unity Editor after cloning. The core logic is pre-configured in the main scene.
+3.  **Link Configuration**:
+    *   Select the **`[LinkManager]`** object (which uses `FSOLinkManager.cs`).
+    *   Add items to the **`Links`** list to define your communication paths.
+    *   Assign the `Transmitter Index` and `Receiver Index` (corresponding to the rack indices).
+    *   **Important**: Configure the type of link (s-WINE vs r-WINE) using the `Reflecting Element Index` (see Configuration section below).
 
-1.  **Prerequisites**: Unity (tested with 2022.3 LTS or later) with the Universal Render Pipeline (URP).
-2.  **Open Scene**: Open the project and load the main scene from the `Assets/Scenes/` folder.
-3.  **Configure**: Select the `GameObject`s in the Hierarchy window to view and adjust their parameters in the Inspector.
+4.  **Simulation**:
+    *   You can visualize the beams directly in the Editor by right-clicking the `FSOLinkManager` component and selecting **"Generate/Update All Links"**.
+    *   Alternatively, enter **Play Mode**. The links will generate automatically.
+    *   The beams (green/red lines) represent the optical paths. If a beam is blocked by an obstacle (rack, wall, etc.), it will turn black, and a blockage message will be logged to the Console.
 
-The scene is organized around a parent-child structure:
+## Link configuration: s-WINE and r-WINE
 
-* **`MachineRoom`** (Root Object)
-    * **Script**: `ProceduralRoomGenerator.cs`
-    * **Purpose**: This is the "brain" of the digital twin. Adjust parameters here to control the overall room dimensions.
-* **`RoomGeometry`** (Child of `MachineRoom`)
-    * **Purpose**: This object is auto-generated and managed by the `ProceduralRoomGenerator`. It holds the physical wall, floor, and ceiling meshes. Do not modify directly.
-* **`Racks`** (Child of `MachineRoom`)
-    * **Script**: `ProceduralRackPlacer.cs`
-    * **Purpose**: Controls all rack layout parameters (total count, rows, aisle spacing, etc.). The required `Rack_Prefab_Base` and `Rack_Material` are assigned here.
-* **`Lighting`** (Child of `MachineRoom`)
-    * **Script**: `ProceduralLightPlacer.cs`
-    * **Purpose**: Controls the placement of the perimeter lights. The `Point Light` prefab is assigned here.
+The type of wireless link is determined by the `Reflecting Element Index` in the `LinkDefinition` of the `FSOLinkManager`:
 
-## Configuration & Key Parameters
+### s-WINE (straight-WINE Link)
+*   **Configuration**: Set **`Reflecting Element Index` to `-1`**.
+*   **Behavior**: The system creates a direct Gaussian beam from the Transmitter's lens to the Receiver's lens.
 
-All parameters can be adjusted live in the Unity Inspector. The environment will regenerate automatically.
+### r-WINE (reflected-WINE Link)
+*   **Configuration**: Set **`Reflecting Element Index` to a valid index** (e.g., `0`, `10`, `48`).
+    *   Valid indices range from `0` to `(elementCountX * elementCountZ) - 1`.
+*   **Behavior**: The system creates two beam segments:
+    1.  Transmitter -> IRS Element (Red beam)
+    2.  IRS Element -> Receiver (Red beam)
+*   The IRS element acts as an active reflector, redirecting the signal to the intended receiver.
 
-### Key Asset Links
+## Scripts Description
 
-* **Rack Prefab & Material**: Located in `Assets/Prefabs/` and `Assets/Materials/`. These are assigned to the slots on the `Racks` GameObject.
-* **Light Prefab**: Located in `Assets/Prefabs/`. Assigned to the slot on the `Lighting` GameObject.
-
-### Key Adjustable Parameters (Metric)
-
-* **Room** (on `MachineRoom`):
-    * `roomWidth`
-    * `roomDepth`
-    * `roomHeight`
-    * (e.g., 16.0m, 12.8m, 3.5m)
-* **Racks** (on `Racks`):
-    * `rackWidth`
-    * `rackDepth`
-    * `rackHeight`
-    * (e.g., 0.6m, 1.2m, 2.0m)
-* **Layout** (on `Racks`):
-    * `totalRacks`
-    * `racksPerRow`
-    * `coldAisleWidth`
-    * `hotAisleWidth`
-    * `layoutStartOffset`
-    * (e.g., 100, 20, 1.2m, 1.2m, 2.0m)
+*   **`FSOLinkManager.cs`**: The central manager for defining and generating FSO links. It handles the logic for distinguishing between s-WINE and r-WINE and instantiates the beam prefabs.
+*   **`FSOBeam.cs`**: Attached to each beam prefab. It handles the visual rendering (LineRenderer) and physics (Collider) of a single beam segment. It detects collisions with obstacles and updates the beam status (e.g., changing color on blockage).
+*   **`ProceduralIRSPlacer.cs`**: Procedurally generates the Intelligent Reflecting Surface (IRS) array on the ceiling. It creates the backplane and the grid of individual reflecting elements based on configurable parameters.
+*   **`FSOBeamCalculator.cs`**: A static helper class containing the physics equations for Gaussian beams (Rayleigh range, beam radius, divergence, intensity).
+*   **`FSOBeamCollider.cs`**: Generates a custom mesh collider for the beam that accurately follows the Gaussian beam profile (expanding with distance). This ensures precise blockage detection.
