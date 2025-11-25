@@ -82,6 +82,9 @@ public class GaussianBeam : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Detects collisions with obstacles and updates the beam status (e.g., changing color on blockage).
+    /// </summary>
     void OnTriggerEnter(Collider other)
     {
         // If we are already blocked, don't do anything else

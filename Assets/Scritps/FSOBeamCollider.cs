@@ -1,8 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 가우시안 빔의 동적 Mesh Collider
-/// PDF Equation 6: w(z) = w₀ * √(1 + (z/z_R)²) 기반으로 distance에 따라 변하는 collider 생성
+/// Gaussian beam mesh collider generation based on PDF Equation 6: w(z) = w₀ * √(1 + (z/z_R)²)
 /// </summary>
 [RequireComponent(typeof(MeshCollider))]
 public class GaussianBeamCollider : MonoBehaviour
@@ -10,11 +9,11 @@ public class GaussianBeamCollider : MonoBehaviour
     [Header("Gaussian Beam Parameters")]
     [SerializeField] private float beamWaist = 0.002f; // w₀ = 2mm
     [SerializeField] private float wavelength = 1550e-9f; // λ = 1550nm
-    [SerializeField] private float beamLength = 10f; // 빔 길이 (m)
+    [SerializeField] private float beamLength = 10f; // Beam length [meters]
 
     [Header("Mesh Generation Settings")]
-    [SerializeField] private int axialSegments = 20; // 축 방향 세그먼트 수 (성능을 위해 줄임)
-    [SerializeField] private int radialSegments = 12; // 원주 방향 세그먼트 수
+    [SerializeField] private int axialSegments = 20; // Number of segments along the beam axis (reduced for performance)
+    [SerializeField] private int radialSegments = 12; // Number of segments around the beam axis
     [SerializeField] private bool updateOnValidate = true;
 
     [Header("Debug")]
@@ -30,17 +29,17 @@ public class GaussianBeamCollider : MonoBehaviour
         if (meshCollider == null)
             meshCollider = gameObject.AddComponent<MeshCollider>();
         
-        // 빔이 생성될 때 바로 콜라이더를 만들지 않고, 
-        // UpdateBeamParameters가 호출될 때 생성하도록 대기합니다.
+        // Wait until the beam is generated before creating the collider.
+        // UpdateBeamParameters will handle the collider creation.
     }
 
     /// <summary>
-    /// 가우시안 빔 collider 메시 생성
-    /// PDF Equation 6 기반 원뿔형 메시
+    /// Generate the Gaussian beam collider mesh
+    /// PDF Equation 6 based conical mesh
     /// </summary>
     public void GenerateGaussianCollider()
     {
-        // Rayleigh range 계산 (PDF Equation 5)
+        // Rayleigh range calculation (PDF Equation 5)
         rayleighRange = GaussianBeamCalculator.CalculateRayleighRange(beamWaist, wavelength);
 
         if (showDebugInfo)
@@ -60,7 +59,7 @@ public class GaussianBeamCollider : MonoBehaviour
         colliderMesh = new Mesh();
         colliderMesh.name = "GaussianBeamCollider";
 
-        // 정점 생성 (원뿔 모양)
+        // Generate vertices (conical shape)
         Vector3[] vertices = GenerateVertices();
         int[] triangles = GenerateTriangles();
 
@@ -69,7 +68,7 @@ public class GaussianBeamCollider : MonoBehaviour
         colliderMesh.RecalculateNormals();
         colliderMesh.RecalculateBounds();
 
-        // MeshCollider에 적용
+        // Apply the mesh to the MeshCollider
         if (meshCollider == null)
             meshCollider = GetComponent<MeshCollider>();
 
@@ -87,48 +86,41 @@ public class GaussianBeamCollider : MonoBehaviour
     }
 
     /// <summary>
-    /// PDF Equation 6 기반 정점 생성
+    /// Generate vertices based on PDF Equation 6: w(z) = w₀ * √(1 + (z/z_R)²)
     /// w(z) = w₀ * √(1 + (z/z_R)²)
     /// </summary>
     private Vector3[] GenerateVertices()
     {
-        // 원뿔 모양의 메시: 축 방향 + 1 * 원주 + 시작/끝 캡
         int totalVertices = (axialSegments + 1) * radialSegments + 2;
         Vector3[] vertices = new Vector3[totalVertices];
 
         int vertexIndex = 0;
-
-        // 시작점 중심 (cap)
         vertices[vertexIndex++] = Vector3.zero;
 
-        // 축 방향으로 세그먼트 생성
+        // Generate vertices along the beam axis 
         for (int z = 0; z <= axialSegments; z++)
         {
             float axialDistance = (float)z / axialSegments * beamLength;
 
-            // PDF Equation 6: w(z) 계산
             float w_z = GaussianBeamCalculator.CalculateBeamRadius(beamWaist, rayleighRange, axialDistance);
 
-            // 원주 방향 정점 생성
+            // Generate vertices around the beam axis
             for (int r = 0; r < radialSegments; r++)
             {
                 float angle = 2f * Mathf.PI * r / radialSegments;
 
                 float x = w_z * Mathf.Cos(angle);
                 float y = w_z * Mathf.Sin(angle);
-                // Unity의 Cylinder는 Y축이 길이 방향이지만,
-                // 우리는 GameObject의 Z축(forward)을 길이로 사용합니다.
+                // Unity's Cylinder is Y-axis is the length direction, but
+                // we use GameObject's Z-axis(forward) as the length.
                 float z_pos = axialDistance; 
 
                 vertices[vertexIndex++] = new Vector3(x, y, z_pos);
             }
         }
 
-        // 끝점 중심 (cap)
-        // 끝점은 마지막 링의 중심입니다.
         vertices[vertexIndex++] = new Vector3(0, 0, beamLength);
 
-        // 정점 수 검사
         if (vertexIndex != totalVertices)
         {
             Debug.LogWarning($"Vertex mismatch. Expected {totalVertices}, got {vertexIndex}");
@@ -138,7 +130,7 @@ public class GaussianBeamCollider : MonoBehaviour
     }
 
     /// <summary>
-    /// 삼각형 인덱스 생성 (원뿔)
+    /// Generate triangles for the conical mesh
     /// </summary>
     private int[] GenerateTriangles()
     {
@@ -201,7 +193,7 @@ public class GaussianBeamCollider : MonoBehaviour
 
 
     /// <summary>
-    /// 빔 파라미터 업데이트 (Manager에서 호출)
+    /// Update beam parameters (called from Manager)
     /// </summary>
     public void UpdateBeamParameters(float newWaist, float newWavelength, float newLength)
     {
@@ -213,14 +205,14 @@ public class GaussianBeamCollider : MonoBehaviour
     }
 
     /// <summary>
-    /// 특정 거리에서의 빔 반경 조회
+    /// Get beam radius at a specific distance
     /// </summary>
     public float GetRadiusAtDistance(float distance)
     {
         if (distance < 0 || distance > beamLength)
             return 0f;
 
-        // rayleighRange가 0이면 다시 계산
+        // Recalculate rayleighRange if it's not initialized
         if (rayleighRange == 0)
             rayleighRange = GaussianBeamCalculator.CalculateRayleighRange(beamWaist, wavelength);
 
@@ -229,7 +221,7 @@ public class GaussianBeamCollider : MonoBehaviour
 
     void OnValidate()
     {
-        // OnValidate에서 런타임에 자동 업데이트 활성화
+        // Update collider on runtime if updateOnValidate is enabled
         if (updateOnValidate && Application.isPlaying)
         {
             GenerateGaussianCollider();
