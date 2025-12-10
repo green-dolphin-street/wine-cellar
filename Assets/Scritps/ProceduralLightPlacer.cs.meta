@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: f567a30d965a7e642b1e9c30d6f30cb6
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - roomGenerator: {instanceID: 0}
+  - areaLightPrefab: {fileID: 102848790393892373, guid: 01f581a2c9cc6c5468c84b7d4939114f, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
